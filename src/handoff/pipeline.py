@@ -153,6 +153,7 @@ def test_validity(t: dict, rc: dict, repo_path: Path, wt: Path, base_sha: str) -
     """Run the new and changed tests against the code before the change: tests that verify the change fail there.
 
     The result is a note for the reviewer, not a gate: a refactor that keeps behavior passes on both.
+    A one-paragraph verdict, then a blank line and the output, if any; the UI folds the output away at that line.
     """
     if not rc.get("test_file") or not rc.get("test_run"):
         return "Test validity is not configured for this project."

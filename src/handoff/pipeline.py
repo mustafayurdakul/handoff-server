@@ -263,6 +263,7 @@ def run_ticket(t: dict, stop: threading.Event) -> None:
         _run(t)
     except agent.Refused as e:  # a refusal is a rejection: a retry would be refused again
         t["error"] = str(e)
+        t["failed_stage"] = t["stage"]  # the UI shows where it stopped: triage rejections have no failed_stage
         store.move(t, "rejected", "The model refused to work on this ticket")
     except Exception as e:
         if stop.is_set():

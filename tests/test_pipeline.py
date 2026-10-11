@@ -84,3 +84,18 @@ def test_a_stopped_ticket_leaves_no_worktree(project, monkeypatch, decision, che
     assert store.load("T")["stage"] == stage
     assert not (store.path("T") / "wt").exists(), "the worktree and its packages were left behind"
     assert not repo.git(project, "branch", "--list", "handoff/T").stdout, "an empty ticket branch was left behind"
+
+
+def test_a_refusal_during_coding_keeps_its_stage(project, monkeypatch):
+    fake_agents(monkeypatch)
+    fake = agent.run
+
+    def refuse_coding(prompt, cwd, tools, *, schema=None, **kw):
+        if schema is None:
+            raise agent.Refused("The model refused this ticket")
+        return fake(prompt, cwd, tools, schema=schema, **kw)
+
+    monkeypatch.setattr(agent, "run", refuse_coding)
+    pipeline.run_ticket(store.create("T", TICKET, pipeline.project_error, "test"), threading.Event())
+    t = store.load("T")
+    assert (t["stage"], t.get("failed_stage")) == ("rejected", "coding")

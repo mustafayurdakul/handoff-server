@@ -1,0 +1,54 @@
+stages:
+  - install
+  - lint
+  - test
+  - build
+
+variables:
+  http_proxy: $CODE_PROXY
+  HTTP_PROXY: $CODE_PROXY
+  https_proxy: $CODE_PROXY
+  HTTPS_PROXY: $CODE_PROXY
+  no_proxy: "$CODE_NO_PROXY,siemens.com,siemens.cloud,siemens.net"
+  NO_PROXY: "$CODE_NO_PROXY,siemens.com,siemens.cloud,siemens.net"
+  DIST: dist
+
+.node:
+  image: node:22-alpine
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules
+    policy: pull
+
+install_dependencies:
+  stage: install
+  extends: .node
+  script:
+    - npm ci
+  cache:
+    policy: pull-push
+
+lint:
+  stage: lint
+  extends: .node
+  script:
+    - npm run lint
+
+test:
+  stage: test
+  extends: .node
+  script:
+    - npm test
+
+build:
+  stage: build
+  extends: .node
+  script:
+    - node -v
+    - npm run build
+  artifacts:
+    name: "maintenance-board"
+    paths:
+      - $DIST
+    expire_in: 1 day

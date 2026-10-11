@@ -1,6 +1,6 @@
 """Runs the demo tickets through a running handoff server and compares each outcome with the ticket's `expect:`.
 
-Usage, with the server running:  python scripts/eval.py [APP-1 PY-3 ...]   (no names: all demo tickets)
+Usage, with the server running:  python scripts/eval.py [MAINT-101 MAINT-104 ...]   (no names: all demo tickets)
 Every ticket makes real agent calls, so this costs tokens. Tickets run one at a time, like any queue.
 """
 import re

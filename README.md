@@ -10,7 +10,7 @@ The web UI is a separate repository: `handoff-ui`.
 sudo apt install python3-venv bubblewrap socat
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 cp .env.example .env
-sh demo/setup.sh                       # demo repositories
+sh demo/setup.sh                       # the demo repository; its scenes: demo/README.md
 ```
 
 ## Run

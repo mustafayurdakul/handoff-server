@@ -1,0 +1,122 @@
+:root {
+  font: 15px/1.45 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: #1f2328;
+  background: #f6f7f9;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+header p {
+  margin: 0;
+  color: #59636e;
+}
+
+input[type='search'] {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 1rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d9e0;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.count,
+.empty,
+.id,
+.machine,
+.assignee {
+  color: #59636e;
+}
+
+ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid #d1d9e0;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.priority,
+.due {
+  padding: 0 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.priority.high {
+  background: #ffebe9;
+  color: #a40e26;
+}
+
+.priority.medium {
+  background: #fff8c5;
+  color: #7d4e00;
+}
+
+.priority.low {
+  background: #eef1f4;
+  color: #59636e;
+}
+
+.due.overdue {
+  background: #cf222e;
+  color: #fff;
+}
+
+.due.soon {
+  background: #fff8c5;
+  color: #7d4e00;
+}
+
+.due.later {
+  color: #59636e;
+  font-weight: 400;
+}

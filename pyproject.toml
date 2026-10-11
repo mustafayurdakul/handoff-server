@@ -1,0 +1,30 @@
+[project]
+name = "handoff"
+version = "0.1.0"
+description = "Takes a ticket through Claude Code agents to a reviewed branch that a person merges."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["fastapi", "uvicorn"]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+handoff = "handoff.__main__:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+handoff = ["prompts/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["demo/projects"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

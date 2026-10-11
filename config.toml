@@ -1,0 +1,64 @@
+# handoff settings. Folders come from the environment instead (see .env.example).
+
+# One section per git repository in HANDOFF_PROJECTS. A ticket names it with `project: <name>` in its front matter.
+[projects.demo-app]
+base_branch = "main"
+setup = "npm ci"            # once per ticket worktree
+check = ["npm run lint", "npm test", "npm run build"]
+# test validity: new or changed files matching test_file are run on the base code with test_run (files are appended)
+test_file = '\.test\.[jt]sx?$'
+test_run = "npx vitest run"
+# commands the coding agent may run (Claude Code permission patterns)
+allowed_bash = [
+  "npm run lint", "npm test", "npm test *", "npm run build",
+  "npx vitest *", "npx tsc *", "npx eslint *", "ls *",
+]
+gitlab_project = "demo/demo-app"   # GitLab path of this repository (used only when [gitlab] is enabled)
+
+[projects.demo-api]
+base_branch = "main"
+setup = "npm ci"
+check = ["npm run lint", "npm test", "npm run build"]
+test_file = '\.test\.ts$'
+test_run = "npx vitest run"
+allowed_bash = [
+  "npm run lint", "npm test", "npm test *", "npm run build",
+  "npx vitest *", "npx tsc *", "npx eslint *", "ls *",
+]
+gitlab_project = "demo/demo-api"
+
+[projects.demo-py]
+base_branch = "main"
+setup = "sh scripts/setup.sh"  # makes .venv with pytest and ruff (needs the network, like npm ci)
+check = [".venv/bin/ruff check .", ".venv/bin/pytest -q"]
+test_file = '(^|/)test_[^/]*\.py$'
+test_run = ".venv/bin/pytest -q"
+allowed_bash = [".venv/bin/ruff check *", ".venv/bin/pytest", ".venv/bin/pytest *", "ls *"]
+gitlab_project = "demo/demo-py"
+
+# Jira Cloud as the ticket source and GitLab for merge requests. Both are off for the demo: tickets come
+# from the inbox folder and branches stay local. Tokens never go in this file: set JIRA_TOKEN and
+# GITLAB_TOKEN in the server's environment. For GitLab, also set gitlab_project in each [projects.<name>].
+[jira]
+enabled = false
+url = "https://your-site.atlassian.net"
+email = "handoff-bot@example.com"   # the account that owns JIRA_TOKEN
+jql = "labels = handoff AND statusCategory != Done"
+poll_seconds = 60
+projects = { APP = "demo-app", API = "demo-api", PY = "demo-py" }  # Jira project key -> handoff project
+
+[gitlab]
+enabled = false
+url = "https://gitlab.example.com"
+
+[agent]
+# every step uses this model and effort, regardless of the user's own Claude Code settings
+model = "claude-sonnet-5-5"
+effort = "high"             # low | medium | high | xhigh | max
+
+[limits]
+rounds = 3                  # coding -> checks -> review loop
+agent_minutes = 20          # time limit for one claude call
+command_seconds = 600       # time limit for setup and check commands
+poll_seconds = 3            # inbox polling interval
+max_tokens = 2_000_000      # per-ticket input + output token budget (cache reads included)

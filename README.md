@@ -1,4 +1,4 @@
-# handoff
+# handoff-server
 
 handoff takes a ticket, lets Claude Code agents write and review the code, and leaves a branch for a person to merge.
 

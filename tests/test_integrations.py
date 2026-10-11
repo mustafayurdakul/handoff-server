@@ -115,6 +115,22 @@ def test_jira_intake_report_and_answer(server, runs):
     assert store.load("DOC-1")["stage"] == "queued"
 
 
+
+def test_jira_one_broken_issue_does_not_stop_the_others(server, runs):
+    cfg = {"url": server, "email": "bot@example.com", "jql": "labels = handoff", "projects": {"DOC": "demo-app"}}
+    # an older ticket whose issue was deleted in Jira: reporting it gets HTTP 404 on every poll
+    gone = store.create("DOC-9", "---\nproject: demo-app\n---\n# Gone\n", lambda t: None, "test", jira="DOC-9")
+    gone.update(stage="failed", error="setup failed")
+    store.save(gone)
+    jira.poll(cfg, lambda t: None)
+    t = store.load("DOC-1")
+    t.update(stage="question", questions=["Newest or oldest first?"])
+    store.save(t)
+
+    jira.poll(cfg, lambda t: None)
+    assert store.load("DOC-1")["jira_reported"] == "question", "the broken issue blocked the report"
+    assert "jira_reported" not in store.load("DOC-9"), "a failed report counts as done"
+
 def test_gitlab_merge_request(server):
     web = gitlab.open_mr(server, "gitlab-secret", "demo/demo-app", "handoff/DOC-1", "main", "DOC-1: Sort", "plan")
     assert web.endswith("/merge_requests/7")

@@ -122,17 +122,16 @@ def bash_sandbox(wt: Path) -> dict:
             "allowUnsandboxedCommands": False,
             "autoAllowBashIfSandboxed": False,  # keep the allowed_bash list from config.toml in force
             "network": {"allowedDomains": []},
-            "filesystem": {"denyRead": ["~/"], "allowRead": [str(wt.resolve()), str(root)]},
+            "filesystem": {"denyRead": ["~/", *sandbox.host_mounts()], "allowRead": [str(wt.resolve()), str(root)]},
         },
     }
 
 
 # --- steps -----------------------------------------------------------------------------------------------------
 
-def triage(t: dict, ticket: str, repo_path: Path, guide: str) -> str | None:
+def triage(t: dict, ticket: str, wt: Path, guide: str) -> str | None:
     """Ask the triage agent. Returns the plan, or None when the ticket now waits for answers or is rejected."""
-    store.move(t, "triage", "Triage started")
-    tri = ask(t, prompt("triage", ticket=ticket), repo_path, READ_ONLY,
+    tri = ask(t, prompt("triage", ticket=ticket), wt, READ_ONLY,
               schema=TRIAGE_SCHEMA, system=guide)["structured_output"]
     t["triage"] = tri
     if tri["decision"] == "question":
@@ -272,6 +271,21 @@ def run_ticket(t: dict, stop: threading.Event) -> None:
         t["error"] = str(e) or type(e).__name__
         t["failed_stage"] = t["stage"]
         store.move(t, "failed", f"Failed: {t['error'].splitlines()[0]}")  # the full text is in t["error"]
+    finally:
+        if t["stage"] in ("question", "rejected", "failed"):
+            clean_up(t)
+
+
+def clean_up(t: dict) -> None:
+    """Remove the worktree and the empty branch of a ticket that stopped before delivery.
+
+    Its diff and command output stay in state.json. A ticket with a worktree has delivered nothing yet.
+    """
+    wt = store.path(t["id"]) / "wt"
+    if wt.exists():
+        repo_path = settings.PROJECTS / t["project"]
+        repo.remove_worktree(repo_path, wt)
+        repo.drop_branch(repo_path, t["id"], t["base"])
 
 
 def _run(t: dict) -> None:
@@ -281,10 +295,11 @@ def _run(t: dict) -> None:
         raise RuntimeError(err)
     rc = CFG["projects"][t["project"]]
     repo_path = settings.PROJECTS / t["project"]
-    if t.get("failed_stage") == "delivering" and t.get("branch"):
-        # the commit is on the branch already, and only the push or the merge request failed: retry just those
-        t.pop("error")
-        t.pop("failed_stage")
+    if t.get("branch"):
+        # the commit is on the branch already: only the push or the merge request failed, or the server stopped
+        # during them. Retry just those (a full run would stop at the unmerged branch).
+        t.pop("error", None)
+        t.pop("failed_stage", None)
         return publish(t, rc, repo_path)
 
     for k in ATTEMPT_KEYS:
@@ -297,13 +312,15 @@ def _run(t: dict) -> None:
     # agents see the ticket without its front matter: `project` is pipeline config, `expect` is for scripts/eval.py
     ticket = re.sub(r"\A---\n.*?\n---[ \t]*\n", "", ticket, flags=re.S).strip()
 
-    plan = triage(t, ticket, repo_path, guide)
-    if plan is None:
-        return
-
-    store.move(t, "coding", "Preparing the worktree")
+    store.move(t, "triage", "Triage started")
+    # triage reads the base branch in the ticket's worktree, not the checkout, which a person may have switched
     wt = store.path(t["id"]) / "wt"
     base_sha = repo.worktree(repo_path, rc["base_branch"], t["id"], wt)
+    plan = triage(t, ticket, wt, guide)
+    if plan is None:
+        return  # run_ticket removes the worktree
+
+    store.move(t, "coding", "Preparing the worktree")
     ok, out = sh(t, rc["setup"], wt, network=True, cache=settings.RUNS / ".npm-cache")  # setup needs the network
     if not ok:
         raise RuntimeError(f"Setup failed:\n{out[-TAIL:]}")

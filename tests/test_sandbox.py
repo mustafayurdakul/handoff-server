@@ -32,6 +32,8 @@ def test_home_and_run_user_are_hidden(tmp_path):
     secret = next(p for p in (HOME / ".claude", HOME / ".ssh", HOME / ".bashrc") if p.exists())
     assert sh(f"test -e {secret}", tmp_path).returncode != 0, f"{secret} is visible"
     assert sh(f"ls -A /run/user/{os.getuid()} | grep -q .", tmp_path).returncode != 0, "/run/user is visible"
+    for d in sandbox.host_mounts():
+        assert sh(f"ls -A {d} | grep -q .", tmp_path).returncode != 0, f"host folder {d} is visible"
 
 
 def test_no_tokens_and_no_network(tmp_path, monkeypatch):
@@ -41,8 +43,19 @@ def test_no_tokens_and_no_network(tmp_path, monkeypatch):
     assert sh(fetch, tmp_path).returncode != 0, "the network is reachable"
 
 
+
+def test_no_nested_user_namespaces(tmp_path):
+    assert sh("unshare -U -r true", tmp_path).returncode != 0, "sandboxed code can create a user namespace"
+
 def test_no_writes_outside(tmp_path):
     escape = HOME / "handoff-sandbox-escape"
     sh(f"echo x > {escape}", tmp_path)
     assert not escape.exists(), "wrote to the home folder"
     assert sh("touch /etc/handoff-sandbox-escape", tmp_path).returncode != 0, "wrote to the system"
+
+
+def test_endless_output_is_cut(tmp_path):
+    lines = []
+    ok, out = sandbox.run(f"seq {sandbox.MAX_LINES * 3}", tmp_path, 60, lines.append)
+    assert ok and len(lines) == sandbox.MAX_LINES + 1, "every line went to the live feed"
+    assert len(out.splitlines()) == sandbox.KEEP_LINES and out.endswith(str(sandbox.MAX_LINES * 3)), "end not kept"

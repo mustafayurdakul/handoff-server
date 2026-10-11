@@ -67,3 +67,14 @@ def test_a_failed_attempt_branch_is_replaced(main_repo, tmp_path):
     # a retry replaces the branch of a failed attempt, which has no commits of its own
     repo.worktree(main_repo, "main", "T-2", tmp_path / "wt")
     repo.worktree(main_repo, "main", "T-2", tmp_path / "wt")
+
+
+def test_a_failed_attempt_branch_is_replaced_whatever_is_checked_out(main_repo, tmp_path):
+    # a person checked out an older branch in the main repository, and main moved on since
+    repo.git(main_repo, "branch", "old")
+    (main_repo / "c.txt").write_text("c\n")
+    repo.git(main_repo, "add", "-A")
+    repo.git(main_repo, *repo.BOT, "commit", "-qm", "c")
+    repo.git(main_repo, "checkout", "-q", "old")
+    repo.worktree(main_repo, "main", "T-3", tmp_path / "wt")
+    repo.worktree(main_repo, "main", "T-3", tmp_path / "wt")

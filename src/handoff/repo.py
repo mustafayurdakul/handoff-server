@@ -25,14 +25,21 @@ def remove_worktree(repo: Path, path: Path) -> None:
     git(repo, "worktree", "prune")
 
 
+def drop_branch(repo: Path, tid: str, base: str) -> None:
+    """Delete the ticket branch of an earlier attempt. A delivered branch with work not on base must survive."""
+    if not git(repo, "branch", "--list", branch(tid)).stdout:
+        return
+    # against base, not HEAD (what `branch -d` uses): a person may have checked out anything in the repository
+    if git(repo, "merge-base", "--is-ancestor", branch(tid), base, check=False).returncode:
+        raise RuntimeError(f"Branch {branch(tid)} has unmerged work from an earlier delivery. "
+                           "Merge or delete it first.")
+    git(repo, "branch", "-D", branch(tid))
+
+
 def worktree(repo: Path, base: str, tid: str, wt: Path) -> str:
     """Open a clean worktree on a new ticket branch. Returns the base commit."""
     remove_worktree(repo, wt)  # left over from an earlier attempt
-    # -d, not -D: a branch that was delivered before (and not merged yet) must survive
-    exists = git(repo, "branch", "--list", branch(tid)).stdout
-    if exists and git(repo, "branch", "-d", branch(tid), check=False).returncode:
-        raise RuntimeError(f"Branch {branch(tid)} has unmerged work from an earlier delivery. "
-                           "Merge or delete it first.")
+    drop_branch(repo, tid, base)
     sha = git(repo, "rev-parse", base).stdout.strip()
     git(repo, "worktree", "add", "-b", branch(tid), str(wt), sha)
     return sha

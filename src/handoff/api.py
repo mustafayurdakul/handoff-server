@@ -3,9 +3,10 @@ import asyncio
 import threading
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import pipeline, sandbox, settings, store
 from .integrations import jira
@@ -26,7 +27,15 @@ async def lifespan(_app: FastAPI):
     sandbox.kill_all()
 
 
-app = FastAPI(title="handoff", lifespan=lifespan)
+def same_site(request: Request) -> None:
+    """Refuse changes sent by other web pages (CSRF). Browsers mark those requests with Sec-Fetch-Site."""
+    if request.method != "GET" and request.headers.get("sec-fetch-site") == "cross-site":
+        raise HTTPException(403, "Cross-site request refused")
+
+
+app = FastAPI(title="handoff", lifespan=lifespan, dependencies=[Depends(same_site)])
+# the API has no login: a Host other than this machine is a web page using DNS rebinding to read it
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
 
 class Answer(BaseModel):

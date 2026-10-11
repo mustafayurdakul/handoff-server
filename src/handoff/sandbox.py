@@ -10,13 +10,19 @@ import shutil
 import signal
 import subprocess
 import threading
+from collections import deque
 from pathlib import Path
 
 HOME = Path.home()
 RUN_USER = Path(f"/run/user/{os.getuid()}")
+# folders shared from the host machine: Windows drives on WSL (/mnt/c), the Mac home folder on Lima (/Users)
+HOST_MOUNTS = ("/mnt", "/media", "/Users")
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 # the only host variables a sandboxed command gets; none of them carries credentials
 PASS_ENV = ("LANG", "LC_ALL", "TERM", "http_proxy", "https_proxy", "no_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY")
+# a test stuck in a print loop writes millions of lines: only this many reach the live feed, and the end is kept
+MAX_LINES = 10_000
+KEEP_LINES = 2_000
 SECRET_ENV = re.compile(r"TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY|PRIVATE|^CLAUDE_CODE_|^CLAUDECODE$", re.I)
 
 _running: set[subprocess.Popen] = set()
@@ -32,6 +38,11 @@ def node_root() -> Path:
     return Path(node).resolve().parent.parent
 
 
+def host_mounts() -> list[str]:
+    """The HOST_MOUNTS that exist here: hidden from sandboxed code like the home folder."""
+    return [d for d in HOST_MOUNTS if os.path.isdir(d)]
+
+
 def agent_env() -> dict[str, str]:
     """Environment for `claude`: credential-like variables removed, ANTHROPIC_* kept (claude needs them)."""
     return {k: v for k, v in os.environ.items() if k.startswith("ANTHROPIC_") or not SECRET_ENV.search(k)}
@@ -42,8 +53,10 @@ def command(cmd: str, cwd: Path, *, network: bool, cache: Path | None = None) ->
     root = node_root()
     argv = [
         "bwrap", "--die-with-parent", "--new-session", "--unshare-all",
+        # no nested user namespaces: they give sandboxed code capabilities, a common way into kernel bugs
+        "--unshare-user", "--disable-userns",
         "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
-        "--tmpfs", str(HOME), "--tmpfs", str(RUN_USER),
+        "--tmpfs", str(HOME), "--tmpfs", str(RUN_USER), *(a for d in host_mounts() for a in ("--tmpfs", d)),
         "--ro-bind", str(root), str(root),
         "--bind", str(cwd), str(cwd),
         "--clearenv", "--setenv", "HOME", str(HOME), "--setenv", "CI", "1", "--setenv", "FORCE_COLOR", "1",
@@ -104,7 +117,10 @@ def kill_all() -> None:
 
 def run(cmd: str, cwd: Path, timeout: int, on_line, *, network: bool = False,
         cache: Path | None = None) -> tuple[bool, str]:
-    """Run `cmd` in the sandbox and pass each output line to on_line. Returns (ok, output without colors)."""
+    """Run `cmd` in the sandbox and pass each output line to on_line, up to MAX_LINES.
+
+    Returns (ok, the last KEEP_LINES lines of output without colors).
+    """
     p = spawn(command(cmd, cwd, network=network, cache=cache), encoding="utf-8", errors="replace",
               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     timed_out = threading.Event()
@@ -115,12 +131,15 @@ def run(cmd: str, cwd: Path, timeout: int, on_line, *, network: bool = False,
 
     timer = threading.Timer(timeout, stop)
     timer.start()
-    out = []
+    out = deque(maxlen=KEEP_LINES)
     try:
-        for line in p.stdout:
+        for n, line in enumerate(p.stdout, 1):
             line = line.rstrip("\n")
             out.append(ANSI.sub("", line))
-            on_line(line)
+            if n <= MAX_LINES:
+                on_line(line)
+            elif n == MAX_LINES + 1:
+                on_line(f"(output cut after {MAX_LINES:,} lines; the command goes on, and the end of it is kept)")
         p.wait()
     finally:
         timer.cancel()

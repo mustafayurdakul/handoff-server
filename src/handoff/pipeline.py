@@ -115,7 +115,10 @@ def bash_sandbox(wt: Path) -> dict:
     """Claude Code settings for the coding agent's Bash: no network; of the home folder only the worktree and Node."""
     root = sandbox.node_root()
     return {
-        "env": {"PATH": f"{root}/bin:/usr/local/bin:/usr/bin:/bin"},  # its sandbox cannot read fnm/nvm shell setup
+        "env": {
+            "PATH": f"{root}/bin:/usr/local/bin:/usr/bin:/bin",  # its sandbox cannot read fnm/nvm shell setup
+            "NPM_CONFIG_UPDATE_NOTIFIER": "false",  # else every npm run asks registry.npmjs.org and logs a violation
+        },
         "sandbox": {
             "enabled": True,
             "failIfUnavailable": True,  # never fall back to running without the sandbox
